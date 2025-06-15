@@ -67,14 +67,14 @@ class _MyHomePageState extends State<MyHomePage> {
           });
           break;
         case 'onScreenshot':
+          print("DEBUG_BOT: Screenshot received on Dart side!");
           // When a screenshot arrives, update the state
-          print('Received screenshot from platform');
           final bytes = call.arguments as Uint8List;
-          print('Screenshot size: ${bytes.length} bytes');
+          print("DEBUG_BOT: Screenshot size: ${bytes.length} bytes");
           setState(() {
             _screenshotBytes = bytes;
           });
-          print('Updated UI with screenshot');
+          print("DEBUG_BOT: Updated UI with screenshot");
           break;
       }
     });

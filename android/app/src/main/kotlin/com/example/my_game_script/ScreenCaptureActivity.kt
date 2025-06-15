@@ -3,6 +3,7 @@ package com.example.my_game_script
 import android.app.Activity
 import android.content.Intent
 import android.media.projection.MediaProjectionManager
+import android.os.Build
 import android.os.Bundle
 import android.util.Log
 
@@ -13,33 +14,41 @@ class ScreenCaptureActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         Log.d(TAG, "ScreenCaptureActivity created")
-        
-        val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
+        requestScreenCapture()
+    }
+
+    private fun requestScreenCapture() {
+        Log.d(TAG, "Requesting screen capture permission")
+        val mediaProjectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
         startActivityForResult(
-            projectionManager.createScreenCaptureIntent(),
+            mediaProjectionManager.createScreenCaptureIntent(),
             SCREEN_CAPTURE_REQUEST_CODE
         )
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
         super.onActivityResult(requestCode, resultCode, data)
-        Log.d(TAG, "onActivityResult: requestCode=$requestCode, resultCode=$resultCode")
+        Log.d(TAG, "onActivityResult called with requestCode: $requestCode, resultCode: $resultCode")
         
         if (requestCode == SCREEN_CAPTURE_REQUEST_CODE) {
             if (resultCode == RESULT_OK && data != null) {
-                Log.d(TAG, "Screen capture permission granted")
-                // Start the screen capture service
+                Log.d(TAG, "Screen capture permission granted, starting service")
                 val serviceIntent = Intent(this, ScreenCaptureService::class.java).apply {
                     action = "START_CAPTURE"
                     putExtra("resultCode", resultCode)
                     putExtra("data", data)
                 }
-                startService(serviceIntent)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                    startForegroundService(serviceIntent)
+                    Log.d(TAG, "Started service as foreground service")
+                } else {
+                    startService(serviceIntent)
+                    Log.d(TAG, "Started service as regular service")
+                }
             } else {
-                Log.e(TAG, "Screen capture permission denied")
+                Log.e(TAG, "Screen capture permission denied or data is null")
             }
+            finish()
         }
-        // Close this activity
-        finish()
     }
 } 

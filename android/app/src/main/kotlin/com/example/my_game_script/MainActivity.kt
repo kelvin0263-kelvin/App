@@ -86,15 +86,16 @@ class MainActivity : FlutterActivity() {
     private fun setupScreenshotReceiver() {
         screenshotReceiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
+                Log.d("DEBUG_BOT", "MainActivity received broadcast! Forwarding to Dart...")
                 // When a broadcast is received, get the image data
                 val byteArray = intent.getByteArrayExtra("screenshot")
                 if (byteArray != null) {
-                    Log.d(TAG, "Received screenshot broadcast, size: ${byteArray.size} bytes")
+                    Log.d("DEBUG_BOT", "Received screenshot broadcast, size: ${byteArray.size} bytes")
                     // And send it over the MethodChannel to Dart
                     methodChannel.invokeMethod("onScreenshot", byteArray)
-                    Log.d(TAG, "Forwarded screenshot to Flutter")
+                    Log.d("DEBUG_BOT", "Forwarded screenshot to Flutter")
                 } else {
-                    Log.e(TAG, "Received screenshot broadcast but byteArray is null")
+                    Log.e("DEBUG_BOT", "Received screenshot broadcast but byteArray is null")
                 }
             }
         }
@@ -102,7 +103,7 @@ class MainActivity : FlutterActivity() {
         LocalBroadcastManager.getInstance(this).registerReceiver(
             screenshotReceiver!!, IntentFilter("onScreenshot")
         )
-        Log.d(TAG, "Screenshot receiver registered")
+        Log.d("DEBUG_BOT", "Screenshot receiver registered in MainActivity")
     }
 
     override fun onDestroy() {

@@ -1,5 +1,8 @@
 package com.example.my_game_script
 
+import android.app.Notification
+import android.app.NotificationChannel
+import android.app.NotificationManager
 import android.app.Service
 import android.content.Intent
 import android.graphics.Bitmap
@@ -9,6 +12,8 @@ import android.hardware.display.VirtualDisplay
 import android.media.ImageReader
 import android.media.projection.MediaProjection
 import android.media.projection.MediaProjectionManager
+import android.os.Build
+import android.os.Environment
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
@@ -21,11 +26,19 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.ImageView
 import android.widget.LinearLayout
+import androidx.core.app.NotificationCompat
 import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ScreenCaptureService : Service() {
     private val TAG = "ScreenCaptureService"
+    private val CHANNEL_ID = "ScreenCaptureServiceChannel"
+    private val NOTIFICATION_ID = 2
     private var mediaProjection: MediaProjection? = null
     private var virtualDisplay: VirtualDisplay? = null
     private var imageReader: ImageReader? = null
@@ -39,13 +52,40 @@ class ScreenCaptureService : Service() {
         super.onCreate()
         handler = Handler(Looper.getMainLooper())
         windowManager = getSystemService(WINDOW_SERVICE) as WindowManager
-        Log.d(TAG, "Service created")
+        createNotificationChannel()
+        val notification = createNotification()
+        startForeground(NOTIFICATION_ID, notification)
+        Log.d(TAG, "Service created and started in foreground")
+    }
+
+    private fun createNotificationChannel() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                CHANNEL_ID,
+                "Screen Capture Service",
+                NotificationManager.IMPORTANCE_LOW
+            )
+            val manager = getSystemService(NotificationManager::class.java)
+            manager.createNotificationChannel(channel)
+            Log.d(TAG, "Notification channel created")
+        }
+    }
+
+    private fun createNotification(): Notification {
+        return NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Screen Capture Active")
+            .setContentText("Capture service is running.")
+            .setSmallIcon(android.R.drawable.ic_menu_camera)
+            .build()
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        Log.d(TAG, "onStartCommand called with action: ${intent?.action}")
         if (intent?.action == "START_CAPTURE") {
             val resultCode = intent.getIntExtra("resultCode", -1)
             val data = intent.getParcelableExtra<Intent>("data")
+            
+            Log.d(TAG, "Received START_CAPTURE with resultCode: $resultCode, data: $data")
             
             if (resultCode != -1 && data != null) {
                 Log.d(TAG, "Starting screen capture")
@@ -62,6 +102,7 @@ class ScreenCaptureService : Service() {
 
     private fun startCapture(resultCode: Int, data: Intent) {
         try {
+            Log.d(TAG, "startCapture called with resultCode: $resultCode")
             val metrics = DisplayMetrics()
             windowManager?.defaultDisplay?.getMetrics(metrics)
 
@@ -75,6 +116,7 @@ class ScreenCaptureService : Service() {
 
             val projectionManager = getSystemService(MEDIA_PROJECTION_SERVICE) as MediaProjectionManager
             mediaProjection = projectionManager.getMediaProjection(resultCode, data)
+            Log.d(TAG, "MediaProjection created successfully")
 
             virtualDisplay = mediaProjection?.createVirtualDisplay(
                 "ScreenCapture",
@@ -86,6 +128,7 @@ class ScreenCaptureService : Service() {
                 null,
                 handler
             )
+            Log.d(TAG, "VirtualDisplay created successfully")
 
             isCapturing = true
             Log.d(TAG, "Screen capture started successfully")
@@ -105,7 +148,7 @@ class ScreenCaptureService : Service() {
             
             val displayButton = capturePreviewView?.findViewById<Button>(R.id.displayButton)
             displayButton?.setOnClickListener {
-                captureAndDisplay()
+                captureAndSave()
             }
 
             val params = WindowManager.LayoutParams(
@@ -131,10 +174,11 @@ class ScreenCaptureService : Service() {
         }
     }
 
-    private fun captureAndDisplay() {
+    private fun captureAndSave() {
         try {
             val image = imageReader?.acquireLatestImage()
             if (image != null) {
+                Log.d("DEBUG_BOT", "Image captured from ImageReader")
                 val planes = image.planes
                 val buffer = planes[0].buffer
                 val pixelStride = planes[0].pixelStride
@@ -156,27 +200,30 @@ class ScreenCaptureService : Service() {
                     image.height
                 )
 
-                handler?.post {
-                    previewImageView?.setImageBitmap(croppedBitmap)
+                // Save the bitmap to a file
+                val timestamp = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault()).format(Date())
+                val filename = "Screenshot_$timestamp.jpg"
+                val picturesDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                val screenshotDir = File(picturesDir, "Screenshots")
+                if (!screenshotDir.exists()) {
+                    screenshotDir.mkdirs()
                 }
-
-                val stream = ByteArrayOutputStream()
-                croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream)
-                val byteArray = stream.toByteArray()
-                Log.d(TAG, "Screenshot size: ${byteArray.size} bytes")
-
-                // Send the screenshot as a local broadcast message
-                val intent = Intent("onScreenshot")
-                intent.putExtra("screenshot", byteArray)
-                LocalBroadcastManager.getInstance(this).sendBroadcast(intent)
-                Log.d(TAG, "Broadcast sent with screenshot")
+                val file = File(screenshotDir, filename)
+                
+                FileOutputStream(file).use { out ->
+                    croppedBitmap.compress(Bitmap.CompressFormat.JPEG, 100, out)
+                }
+                
+                Log.d("DEBUG_BOT", "Screenshot saved to: ${file.absolutePath}")
 
                 bitmap.recycle()
                 croppedBitmap.recycle()
                 image.close()
+            } else {
+                Log.d("DEBUG_BOT", "No image available from ImageReader")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error capturing and displaying screenshot", e)
+            Log.e("DEBUG_BOT", "Error capturing and saving screenshot", e)
         }
     }
 
@@ -184,7 +231,7 @@ class ScreenCaptureService : Service() {
         Thread {
             while (isCapturing) {
                 try {
-                    captureAndDisplay()
+                    captureAndSave()
                     Thread.sleep(1000) // Capture every second
                 } catch (e: Exception) {
                     Log.e(TAG, "Error in capture loop", e)
@@ -199,6 +246,7 @@ class ScreenCaptureService : Service() {
         imageReader?.close()
         mediaProjection?.stop()
         capturePreviewView?.let { windowManager?.removeView(it) }
+        stopSelf()
         Log.d(TAG, "Screen capture stopped")
     }
 
