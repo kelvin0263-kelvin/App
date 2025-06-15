@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'dart:io';
+import 'dart:ui' as ui;
+import 'dart:typed_data';
+import 'package:flutter/rendering.dart';
 
 void main() {
   runApp(const MyApp());
@@ -36,6 +39,11 @@ class _MyHomePageState extends State<MyHomePage> {
   bool _isFloatingWindowActive = false;
   String? _errorMessage;
   static const platform = MethodChannel('com.example.my_game_script/overlay');
+  
+  // Add screenshot related variables
+  final GlobalKey _repaintBoundaryKey = GlobalKey();
+  Uint8List? _screenshotBytes;
+  bool _isCapturing = false;
 
   @override
   void initState() {
@@ -126,50 +134,99 @@ class _MyHomePageState extends State<MyHomePage> {
     }
   }
 
+  // Add screenshot capture function
+  Future<void> _captureScreenshot() async {
+    try {
+      setState(() {
+        _isCapturing = true;
+      });
+
+      // Find the RenderObject from the GlobalKey
+      RenderRepaintBoundary boundary = _repaintBoundaryKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
+      
+      // Capture the boundary as an image
+      ui.Image image = await boundary.toImage(pixelRatio: 3.0);
+      
+      // Convert the image to byte data in PNG format
+      ByteData? byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+      
+      if (byteData != null) {
+        setState(() {
+          _screenshotBytes = byteData.buffer.asUint8List();
+          _isCapturing = false;
+        });
+        print("Screenshot captured successfully!");
+      }
+    } catch (e) {
+      print("Error capturing screenshot: $e");
+      setState(() {
+        _isCapturing = false;
+      });
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        backgroundColor: Theme.of(context).colorScheme.inversePrimary,
-        title: Text(widget.title),
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: <Widget>[
-            Text(
-              'Overlay Permission: ${_hasOverlayPermission ? "Granted" : "Not Granted"}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            Text(
-              'Floating Window: ${_isFloatingWindowActive ? "Active" : "Inactive"}',
-              style: Theme.of(context).textTheme.titleMedium,
-            ),
-            if (_errorMessage != null)
-              Padding(
-                padding: const EdgeInsets.all(8.0),
-                child: Text(
-                  _errorMessage!,
-                  style: TextStyle(color: Colors.red),
+    return RepaintBoundary(
+      key: _repaintBoundaryKey,
+      child: Scaffold(
+        appBar: AppBar(
+          backgroundColor: Theme.of(context).colorScheme.inversePrimary,
+          title: Text(widget.title),
+        ),
+        body: Center(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: <Widget>[
+              Text(
+                'Overlay Permission: ${_hasOverlayPermission ? "Granted" : "Not Granted"}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              Text(
+                'Floating Window: ${_isFloatingWindowActive ? "Active" : "Inactive"}',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              if (_errorMessage != null)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Text(
+                    _errorMessage!,
+                    style: const TextStyle(color: Colors.red),
+                  ),
                 ),
-              ),
-            const SizedBox(height: 20),
-            if (!_hasOverlayPermission)
+              const SizedBox(height: 20),
+              if (!_hasOverlayPermission)
+                ElevatedButton(
+                  onPressed: _requestOverlayPermission,
+                  child: const Text('Grant Overlay Permission'),
+                ),
+              if (_hasOverlayPermission && !_isFloatingWindowActive)
+                ElevatedButton(
+                  onPressed: _startFloatingWindow,
+                  child: const Text('Start Floating Window'),
+                ),
+              if (_isFloatingWindowActive)
+                ElevatedButton(
+                  onPressed: _stopFloatingWindow,
+                  child: const Text('Stop Floating Window'),
+                ),
+              const SizedBox(height: 20),
+              // Add screenshot button
               ElevatedButton(
-                onPressed: _requestOverlayPermission,
-                child: const Text('Grant Overlay Permission'),
+                onPressed: _isCapturing ? null : _captureScreenshot,
+                child: Text(_isCapturing ? 'Capturing...' : 'Take Screenshot'),
               ),
-            if (_hasOverlayPermission && !_isFloatingWindowActive)
-              ElevatedButton(
-                onPressed: _startFloatingWindow,
-                child: const Text('Start Floating Window'),
-              ),
-            if (_isFloatingWindowActive)
-              ElevatedButton(
-                onPressed: _stopFloatingWindow,
-                child: const Text('Stop Floating Window'),
-              ),
-          ],
+              if (_screenshotBytes != null) ...[
+                const SizedBox(height: 20),
+                Container(
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.blue, width: 2),
+                  ),
+                  child: Image.memory(_screenshotBytes!, width: 200),
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
