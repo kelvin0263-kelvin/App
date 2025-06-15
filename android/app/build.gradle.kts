@@ -46,6 +46,9 @@ dependencies {
     implementation("com.google.mlkit:text-recognition-devanagari:16.0.0")
     implementation("com.google.mlkit:text-recognition-japanese:16.0.0")
     implementation("com.google.mlkit:text-recognition-korean:16.0.0")
+    
+    // Add LocalBroadcastManager dependency
+    implementation("androidx.localbroadcastmanager:localbroadcastmanager:1.1.0")
 }
 
 flutter {

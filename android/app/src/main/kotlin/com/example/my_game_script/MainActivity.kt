@@ -1,12 +1,16 @@
 package com.example.my_game_script
 
+import android.content.BroadcastReceiver
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
 import android.util.Log
 import android.widget.Toast
+import androidx.localbroadcastmanager.content.LocalBroadcastManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
@@ -16,10 +20,12 @@ class MainActivity : FlutterActivity() {
     private val CHANNEL = "com.example.my_game_script/overlay"
     private val OVERLAY_PERMISSION_REQ_CODE = 1234
     private lateinit var methodChannel: MethodChannel
+    private var screenshotReceiver: BroadcastReceiver? = null
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         methodChannel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, CHANNEL)
+        setupScreenshotReceiver()
         methodChannel.setMethodCallHandler { call, result ->
             Log.d(TAG, "Received method call: ${call.method}")
             when (call.method) {
@@ -75,6 +81,36 @@ class MainActivity : FlutterActivity() {
                 }
             }
         }
+    }
+
+    private fun setupScreenshotReceiver() {
+        screenshotReceiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                // When a broadcast is received, get the image data
+                val byteArray = intent.getByteArrayExtra("screenshot")
+                if (byteArray != null) {
+                    Log.d(TAG, "Received screenshot broadcast, size: ${byteArray.size} bytes")
+                    // And send it over the MethodChannel to Dart
+                    methodChannel.invokeMethod("onScreenshot", byteArray)
+                    Log.d(TAG, "Forwarded screenshot to Flutter")
+                } else {
+                    Log.e(TAG, "Received screenshot broadcast but byteArray is null")
+                }
+            }
+        }
+        // Register the receiver to listen for messages named "onScreenshot"
+        LocalBroadcastManager.getInstance(this).registerReceiver(
+            screenshotReceiver!!, IntentFilter("onScreenshot")
+        )
+        Log.d(TAG, "Screenshot receiver registered")
+    }
+
+    override fun onDestroy() {
+        // Unregister the receiver when the app is destroyed to prevent memory leaks
+        screenshotReceiver?.let {
+            LocalBroadcastManager.getInstance(this).unregisterReceiver(it)
+        }
+        super.onDestroy()
     }
 
     override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {

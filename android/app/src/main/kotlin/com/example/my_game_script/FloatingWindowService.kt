@@ -192,6 +192,16 @@ class FloatingWindowService : Service() {
                 }
                 addView(ocrResultTextView)
 
+                // --- START: ADD THE CODE BELOW ---
+            // Add Start Screen Capture button
+                addView(Button(this@FloatingWindowService).apply {
+                    text = "Start Screen Capture"
+                    setOnClickListener {
+                        startScreenCaptureProcess()
+                    }
+                })
+            // --- END: ADD THE CODE ABOVE ---
+
                 // Add Start OCR button
                 addView(Button(this@FloatingWindowService).apply {
                     text = "Start OCR"
@@ -328,6 +338,19 @@ class FloatingWindowService : Service() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Log.d(TAG, "Service onStartCommand")
         return START_STICKY
+    }
+
+    private fun startScreenCaptureProcess() {
+        try {
+            Log.d(TAG, "Starting screen capture process")
+            val intent = Intent(this, ScreenCaptureActivity::class.java)
+            intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(intent)
+            Log.d(TAG, "ScreenCaptureActivity started")
+        } catch (e: Exception) {
+            Log.e(TAG, "Error starting screen capture process", e)
+            Toast.makeText(this, "Error starting screen capture: ${e.message}", Toast.LENGTH_LONG).show()
+        }
     }
 
     override fun onBind(intent: Intent?): IBinder? = null

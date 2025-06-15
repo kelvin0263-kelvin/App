@@ -66,6 +66,16 @@ class _MyHomePageState extends State<MyHomePage> {
             _errorMessage = call.arguments as String?;
           });
           break;
+        case 'onScreenshot':
+          // When a screenshot arrives, update the state
+          print('Received screenshot from platform');
+          final bytes = call.arguments as Uint8List;
+          print('Screenshot size: ${bytes.length} bytes');
+          setState(() {
+            _screenshotBytes = bytes;
+          });
+          print('Updated UI with screenshot');
+          break;
       }
     });
   }
@@ -195,6 +205,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   ),
                 ),
               const SizedBox(height: 20),
+              if (_screenshotBytes != null)
+                Padding(
+                  padding: const EdgeInsets.all(8.0),
+                  child: Image.memory(
+                    _screenshotBytes!,
+                    width: 300,
+                    height: 200,
+                    fit: BoxFit.contain,
+                  ),
+                ),
               if (!_hasOverlayPermission)
                 ElevatedButton(
                   onPressed: _requestOverlayPermission,
@@ -216,15 +236,6 @@ class _MyHomePageState extends State<MyHomePage> {
                 onPressed: _isCapturing ? null : _captureScreenshot,
                 child: Text(_isCapturing ? 'Capturing...' : 'Take Screenshot'),
               ),
-              if (_screenshotBytes != null) ...[
-                const SizedBox(height: 20),
-                Container(
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue, width: 2),
-                  ),
-                  child: Image.memory(_screenshotBytes!, width: 200),
-                ),
-              ],
             ],
           ),
         ),
